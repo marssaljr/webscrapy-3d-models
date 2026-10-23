@@ -35,6 +35,7 @@ export const EXPANSIONS = Object.freeze([
   { id: 'dragonflight', label: 'Dragonflight' },
   { id: 'tww', label: 'The War Within' },
   { id: 'midnight', label: 'Midnight' },
+  { id: 'live', label: 'Live (Retail)' },
 ]);
 
 export const EXPANSION_ALIASES = Object.freeze({

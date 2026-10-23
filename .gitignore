@@ -4,3 +4,7 @@ data/
 *.log
 .DS_Store
 Thumbs.db
+.vercel/
+public/data/
+.vercel
+.env*

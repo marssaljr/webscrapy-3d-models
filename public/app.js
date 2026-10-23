@@ -3,6 +3,7 @@ const state = {
   expansions: [],
   loading: false,
   requestId: 0,
+  readOnly: false,
 };
 
 const elements = {
@@ -21,6 +22,7 @@ const elements = {
   scrapeKind: document.querySelector('#scrape-kind'),
   scrapeId: document.querySelector('#scrape-id'),
   scrapeButton: document.querySelector('#scrape-button'),
+  scrapeHint: document.querySelector('#scrape-hint'),
   dialog: document.querySelector('#detail-dialog'),
   detail: document.querySelector('#detail-content'),
   dialogClose: document.querySelector('#dialog-close'),
@@ -75,7 +77,9 @@ function escapeHtml(value) {
 }
 
 function assetUrl(path) {
-  return `/data/${String(path).split('/').map(encodeURIComponent).join('/')}`;
+  const value = String(path ?? '');
+  if (/^https?:\/\//i.test(value)) return value;
+  return `/data/${value.split('/').map(encodeURIComponent).join('/')}`;
 }
 
 function formatBytes(bytes) {
@@ -170,6 +174,24 @@ function recordQuery() {
   const query = elements.search.value.trim();
   if (query) params.set('q', query);
   return params.toString();
+}
+
+async function loadHealth() {
+  try {
+    const payload = await fetchJson('/api/health');
+    state.readOnly = Boolean(payload.readOnly);
+    if (state.readOnly) applyReadOnly();
+  } catch {
+    state.readOnly = false;
+  }
+}
+
+function applyReadOnly() {
+  elements.scrapeButton.querySelector('span').textContent = 'Prévia';
+  if (elements.scrapeHint) {
+    elements.scrapeHint.innerHTML =
+      'Neste deploy a coleta é uma prévia remota, sem gravar arquivos. Para baixar tudo, rode a CLI localmente: <code>npm run scrape -- npc 137698</code>';
+  }
 }
 
 async function loadRecords({ showSkeleton = true } = {}) {
@@ -434,11 +456,11 @@ function openRecord(record) {
           </div>
         </section>
         <section class="detail-section">
-          <h3>Cache local</h3>
+          <h3>${record.preview ? 'Prévia remota' : 'Cache local'}</h3>
           <p class="form-hint" style="margin: 0">
-            Os assets ficam em <code>data/${escapeHtml(record.expansion)}/</code>.
-            O manifesto completo está em
-            <code>catalog/${escapeHtml(record.kind)}/${escapeHtml(record.id)}.json</code>.
+            ${record.preview
+              ? 'Este registro foi consultado ao vivo e não foi gravado. Use a CLI local para salvar M2, skin, física e texturas.'
+              : `Os assets ficam em <code>data/${escapeHtml(record.expansion)}/</code>. O manifesto completo está em <code>catalog/${escapeHtml(record.kind)}/${escapeHtml(record.id)}.json</code>.`}
           </p>
         </section>
       </aside>
@@ -462,7 +484,7 @@ async function handleScrape(event) {
   const expansion = elements.scrapeExpansion.value;
   const kind = elements.scrapeKind.value;
   elements.scrapeButton.disabled = true;
-  elements.scrapeButton.querySelector('span').textContent = 'Coletando';
+  elements.scrapeButton.querySelector('span').textContent = state.readOnly ? 'Buscando' : 'Coletando';
 
   try {
     const payload = await fetchJson('/api/scrape', {
@@ -472,9 +494,10 @@ async function handleScrape(event) {
     });
     const record = payload.record;
     const status = record?.status ?? 'failed';
+    const counts = `${record.stats.models} modelo(s), ${record.stats.skins ?? 0} skin(s), ${record.stats.textures} textura(s).`;
     showToast(
       status === 'complete'
-        ? `${kind.toUpperCase()} ${id} coletado: ${record.stats.models} modelo(s), ${record.stats.skins ?? 0} skin(s), ${record.stats.textures} textura(s).`
+        ? `${payload.preview ? 'Prévia de ' : ''}${kind.toUpperCase()} ${id}: ${counts}`
         : `${kind.toUpperCase()} ${id} terminou como ${STATUS_LABELS[status] ?? status}. Confira os detalhes.`,
       status === 'complete' ? 'info' : 'warn',
     );
@@ -482,14 +505,27 @@ async function handleScrape(event) {
     elements.filterExpansion.value = expansion;
     elements.filterKind.value = kind;
     elements.search.value = '';
-    await loadRecords({ showSkeleton: false });
-    if (record) openRecord(record);
+
+    if (payload.preview && record) {
+      state.records = [
+        record,
+        ...state.records.filter(
+          (entry) =>
+            !(entry.expansion === record.expansion && entry.kind === record.kind && String(entry.id) === String(record.id)),
+        ),
+      ];
+      renderRecords();
+      openRecord(record);
+    } else {
+      await loadRecords({ showSkeleton: false });
+      if (record) openRecord(record);
+    }
     setServerStatus(true);
   } catch (error) {
     showToast(`Coleta falhou: ${error.message}`, 'error', 6000);
   } finally {
     elements.scrapeButton.disabled = false;
-    elements.scrapeButton.querySelector('span').textContent = 'Coletar';
+    elements.scrapeButton.querySelector('span').textContent = state.readOnly ? 'Prévia' : 'Coletar';
   }
 }
 
@@ -530,6 +566,7 @@ function bindEvents() {
 
 async function init() {
   bindEvents();
+  await loadHealth();
   await loadExpansions();
   await loadRecords();
   elements.scrapeId.focus({ preventScroll: true });

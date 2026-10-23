@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULTS, MIME_TYPES, VERSION } from './constants.js';
 import { AppError, ConfigError, NotFoundError, ValidationError } from './errors.js';
 import { createLogger } from './logger.js';
+import { previewRecord } from './preview.js';
 import { scrapeRecord } from './scraper.js';
 import { AssetStore } from './storage.js';
 import { normalizeExpansion, normalizeKind, parseId } from './urls.js';
@@ -132,6 +133,7 @@ export function createApp(options = {}) {
   const store = new AssetStore(outDir);
   const dataRoot = store.rootDir;
   const logger = options.logger ?? createLogger({ level: 'info' });
+  const readOnly = Boolean(options.readOnly);
   const baseOptions = {
     baseUrl: options.baseUrl ?? DEFAULTS.baseUrl,
     outDir: dataRoot,
@@ -149,6 +151,7 @@ export function createApp(options = {}) {
       sendJson(response, 200, {
         ok: true,
         version: VERSION,
+        readOnly,
         dataDir: dataRoot,
         uptimeSeconds: Math.round(process.uptime()),
       });
@@ -198,6 +201,20 @@ export function createApp(options = {}) {
 
     if (url.pathname === '/api/scrape' && request.method === 'POST') {
       const body = await readJsonBody(request);
+
+      if (readOnly) {
+        const record = await previewRecord(
+          {
+            ...baseOptions,
+            expansion: body.expansion,
+            kind: body.kind,
+            id: body.id,
+          },
+          { logger },
+        );
+        sendJson(response, 200, { preview: true, record });
+        return true;
+      }
       let expansion;
       let kind;
       let id;
@@ -312,6 +329,7 @@ export function createApp(options = {}) {
 
 export async function startServer(options = {}) {
   const logger = options.logger ?? createLogger({ level: 'info' });
+  const readOnly = Boolean(options.readOnly);
   const handler = createApp({ ...options, logger });
   const server = http.createServer(handler);
   const host = options.host ?? '127.0.0.1';
