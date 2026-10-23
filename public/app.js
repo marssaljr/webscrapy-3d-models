@@ -44,6 +44,7 @@ const FALLBACK_EXPANSIONS = [
   ['dragonflight', 'Dragonflight'],
   ['tww', 'The War Within'],
   ['midnight', 'Midnight'],
+  ['live', 'Live (Retail)'],
 ];
 
 const KIND_LABELS = {
