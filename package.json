@@ -1,0 +1,29 @@
+{
+  "name": "wow-model-scraper",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Scraper de metadados, modelos M2, skins e texturas do Model Viewer da Wowhead/Zamimg.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/cli.js serve",
+    "serve": "node src/cli.js serve",
+    "scrape": "node src/cli.js scrape",
+    "list": "node src/cli.js list",
+    "verify": "node src/cli.js verify",
+    "test": "node --test",
+    "test:watch": "node --test --watch"
+  },
+  "keywords": [
+    "wow",
+    "world-of-warcraft",
+    "m2",
+    "model-viewer",
+    "scraper",
+    "skin",
+    "webp"
+  ],
+  "license": "MIT"
+}
